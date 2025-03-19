@@ -18,7 +18,7 @@ import axiosCreate from "axios";
  * @property {string} access_token
  * @property {string} token_type
  * @property {number} expires_in
- * @property {string} refresh_token
+ * @property {string|null} refresh_token
  */
 
 /**
@@ -114,7 +114,8 @@ class PromExport3CX {
       );
       if (response.status === 200) {
         this.#token = response.data.access_token;
-        this.#refreshToken = response.data.refresh_token;
+        if (response.data.refresh_token)
+          this.#refreshToken = response.data.refresh_token;
       } else {
         console.error("Erro ao renovar o token:", response.status);
         return null;
@@ -127,10 +128,9 @@ class PromExport3CX {
 
   /**
    * Escuta as chamadas ativas no servidor 3CX e atualiza as métricas
-   * @param {{chamadasAtivasGauge: import("prom-client").Gauge, troncoChamadasGauge: import("prom-client").Gauge}} param0
-   * @returns {Promise<void>}
+   * @returns {Promise<{chamadasSimultaneas: number, chamadasAtivas: ActiveCallsType[]}>}
    **/
-  async escutarChamadasAtivas({ chamadasAtivasGauge, troncoChamadasGauge }) {
+  async escutarChamadasAtivas() {
     try {
       /** @type {import("axios").AxiosResponse<ResponseActiveCalls>} */
       const response = await this.#axios.get(
@@ -139,78 +139,67 @@ class PromExport3CX {
           headers: {
             Authorization: `Bearer ${this.#token}`,
           },
+          validateStatus: (s) => s === 200,
         }
       );
-      if (response.status === 200) {
-        chamadasAtivasGauge.set(response.data["@odata.count"]);
-        console.log("Total Chamadas ativas:", response.data["@odata.count"]);
+      console.log("Total Chamadas ativas:", response.data["@odata.count"]);
 
-        const chamadasAtivas = response.data.value
-          .filter(
-            (c) => c.Status !== "Initiating" && c.Status !== "Transferring"
-          )
-          .map((chamada) => {
-            try {
-              const [_, callerId, callerName, callerNumber] =
-                chamada.Caller.match(/^(\d+)\s(.+)(?:\s\((\d+)\))?$/); // Regex para separar o número do ramal e o nome do ramal caso exista
+      const chamadasAtivas = response.data.value
+        .filter((c) => c.Status === "Talking")
+        .map((chamada) => {
+          try {
+            const [_, callerId, callerName, callerNumber] =
+              chamada.Caller.match(
+                /^(?<id>\d+)\s(?<name>[\w\p{L}\s]+)(?:\s\((?<destino>\d+)\))?$/u
+              ); // Regex para separar o número do ramal e o nome do ramal caso exista
 
-              const [__, calleeId, calleeName, calleeNumber] =
-                chamada.Callee.match(/^(\d+)\s(.+)(?:\s\((\d+)\))?$/); // Regex para separar o número discado e o nome do discado caso exista
+            const [__, calleeId, calleeName, calleeNumber] =
+              chamada.Callee.match(
+                /^(?<id>\d+)\s(?<name>[\w\p{L}\s]+)(?:\s\((?<destino>\d+)\))?$/u
+              ); // Regex para separar o número discado e o nome do discado caso exista
 
-              const troncoId =
-                String(callerId).length === 5 ? callerId : calleeId;
+            let troncoName = "RAMAL"; // Chamada entre ramais
 
-              return {
-                id: chamada.Id,
-                caller: chamada.Caller,
-                callerData: {
-                  id: callerId,
-                  name: callerName,
-                },
-                callee: chamada.Callee,
-                calleeData: {
-                  id: calleeId,
-                  name: calleeName,
-                },
-                trunkId: troncoId,
-                status: chamada.Status,
-                lastChangeStatus: chamada.LastChangeStatus,
-                establishedAt: chamada.EstablishedAt,
-                serverNow: chamada.ServerNow,
-              };
-            } catch (error) {
-              console.log(
-                "Total Chamadas ativas:",
-                response.data["@odata.count"]
-              );
-              console.error("Erro ao processar chamada:", error, chamada);
-              return null;
+            if (String(callerId).length === 5 && callerName) {
+              troncoName = callerName;
             }
-          });
-
-        /**
-         * Conta o total de chamadas por tronco ativo
-         * @type {{[troncoId: string]: number}}
-         */
-        const troncos = chamadasAtivas
-          .filter((c) => c)
-          .reduce((acc, chamada) => {
-            if (acc[chamada.trunkId]) {
-              acc[chamada.trunkId]++;
-            } else {
-              acc[chamada.trunkId] = 1;
+            if (String(calleeId).length === 5 && calleeName) {
+              troncoName = calleeName;
             }
-            return acc;
-          }, {});
 
-        Object.entries(troncos).forEach(([troncoId, totalChamadas]) => {
-          troncoChamadasGauge.set({ troncoId }, totalChamadas);
+            return {
+              id: chamada.Id,
+              caller: chamada.Caller,
+              callerData: {
+                id: callerId,
+                name: callerName,
+                destination: callerNumber,
+              },
+              callee: chamada.Callee,
+              calleeData: {
+                id: calleeId,
+                name: calleeName,
+                destination: calleeNumber,
+              },
+              trunkName: troncoName,
+            };
+          } catch (error) {
+            console.log(
+              "Total Chamadas ativas:",
+              response.data["@odata.count"]
+            );
+            console.error("Erro ao processar chamada:", error, chamada);
+            return null;
+          }
         });
-      } else {
-        console.error("Erro ao acessar o endpoint:", response.status);
-      }
+
+      return {
+        chamadasSimultaneas: response.data["@odata.count"],
+        chamadasAtivas: chamadasAtivas.filter((c) => c !== null),
+      };
     } catch (error) {
       console.error("Erro na solicitação:", error);
+      return { chamadasSimultaneas: 0, chamadasAtivas: [] };
     }
   }
 
@@ -243,10 +232,22 @@ class PromExport3CX {
           return;
         }
       }
-      await this.escutarChamadasAtivas({
-        chamadasAtivasGauge,
-        troncoChamadasGauge,
-      });
+      const { chamadasAtivas, chamadasSimultaneas } =
+        await this.escutarChamadasAtivas();
+
+      chamadasAtivasGauge.set(chamadasSimultaneas);
+
+      /**
+       * @type {Object<string, number>}
+       */
+      const totalPorTronco = chamadasAtivas.reduce((acc, chamada) => {
+        acc[chamada.trunkName] = (acc[chamada.trunkName] || 0) + 1;
+        return acc;
+      }, {});
+
+      for (const [tronco, total] of Object.entries(totalPorTronco)) {
+        troncoChamadasGauge.set({ tronco }, total);
+      }
     }, 5000); // Verificar a cada 5 segundos
   }
 }

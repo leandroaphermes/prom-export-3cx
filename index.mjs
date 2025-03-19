@@ -19,7 +19,7 @@ const chamadasAtivasGauge = new client.Gauge({
 const troncoChamadasGauge = new client.Gauge({
   name: "promexport3cx_tronco_chamadas_total",
   help: "Total de chamadas por tronco",
-  labelNames: ["troncoId"],
+  labelNames: ["tronco"],
   registers: [register],
 });
 
