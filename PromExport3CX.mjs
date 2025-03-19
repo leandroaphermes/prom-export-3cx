@@ -158,7 +158,7 @@ class PromExport3CX {
                 /^(?<id>\d+)\s(?<name>[\w\p{L}\s]+)(?:\s\((?<destino>\d+)\))?$/u
               ); // Regex para separar o número discado e o nome do discado caso exista
 
-            let troncoName = "RAMAL"; // Chamada entre ramais
+            let troncoName = "RAMAL_INTERNO"; // Caso não seja encontrado o nome do tronco, será considerado como ramal interno
 
             if (String(callerId).length === 5 && callerName) {
               troncoName = callerName;
@@ -216,6 +216,9 @@ class PromExport3CX {
       return;
     }
 
+    /** @type {Map<string, number>} */
+    const troncoMap = new Map();
+
     const tempoRenovacao = 3000 * 1000; // 50 minutos em milissegundos
     let ultimoTempoRenovacao = Date.now();
 
@@ -245,9 +248,17 @@ class PromExport3CX {
         return acc;
       }, {});
 
-      for (const [tronco, total] of Object.entries(totalPorTronco)) {
-        troncoChamadasGauge.set({ tronco }, total);
+      for (const [keyMapTronco] of troncoMap.entries()) {
+        troncoMap.set(keyMapTronco, 0);
       }
+
+      for (const [tronco, total] of Object.entries(totalPorTronco)) {
+        troncoMap.set(tronco, total);
+      }
+
+      troncoMap.forEach((total, tronco) => {
+        troncoChamadasGauge.set({ tronco }, total);
+      });
     }, 5000); // Verificar a cada 5 segundos
   }
 }
