@@ -143,6 +143,7 @@ class PromExport3CX {
       );
       if (response.status === 200) {
         chamadasAtivasGauge.set(response.data["@odata.count"]);
+        console.log("Total Chamadas ativas:", response.data["@odata.count"]);
 
         const chamadasAtivas = response.data.value
           .filter(
@@ -150,10 +151,6 @@ class PromExport3CX {
           )
           .map((chamada) => {
             try {
-              console.log(
-                "Total Chamadas ativas:",
-                response.data["@odata.count"]
-              );
               const [_, callerId, callerName, callerNumber] =
                 chamada.Caller.match(/^(\d+)\s(.+)(?:\s\((\d+)\))?$/); // Regex para separar o número do ramal e o nome do ramal caso exista
 
@@ -182,6 +179,10 @@ class PromExport3CX {
                 serverNow: chamada.ServerNow,
               };
             } catch (error) {
+              console.log(
+                "Total Chamadas ativas:",
+                response.data["@odata.count"]
+              );
               console.error("Erro ao processar chamada:", error, chamada);
               return null;
             }
@@ -233,6 +234,7 @@ class PromExport3CX {
       if (Date.now() - ultimoTempoRenovacao >= tempoRenovacao) {
         await this.obterRefreshToken();
         if (this.#token) {
+          console.log("Token renovado com sucesso.", new Date().toISOString());
           ultimoTempoRenovacao = Date.now();
         } else {
           console.error(
