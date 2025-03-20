@@ -40,6 +40,20 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(process.env.PORT || 3000, "0.0.0.0", () => {
   console.log(`Servidor rodando na porta 0.0.0.0:${process.env.PORT || 3000}`);
+  console.log(
+    `\nMétricas disponíveis em http://${server.address().address}:${
+      server.address().port
+    }/metrics`
+  );
+  console.log(
+    `Healthcheck disponível em http://${server.address().address}:${
+      server.address().port
+    }/health`
+  );
+  console.log(
+    `\nIniciando coleta de métricas do servidor 3CX ${process.env.PABX_URL}`
+  );
+  console.log(`Ramal ID: ${process.env.PABX_RAMALID}`);
 
   const promExport3CX = new PromExport3CX(
     process.env["PABX_RAMALID"],

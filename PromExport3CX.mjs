@@ -59,6 +59,9 @@ class PromExport3CX {
   /** @type {import("axios").AxiosInstance} */
   #axios;
 
+  #regexRamal =
+    /^(?<id>\d+)\s(?<name>[\w\p{L}\s]+)(?:\s\((?<destino>\w+)\))?$/u;
+
   constructor(username, password, baseURL) {
     this.#userConfig.username = username;
     this.#userConfig.password = password;
@@ -139,21 +142,51 @@ class PromExport3CX {
         }
       );
 
+      if (process.env.NODE_ENV === "development") {
+        console.log("Total Chamadas ativas:", response.data["@odata.count"]);
+      }
+
       const chamadasAtivas = response.data.value
         .filter((c) => c.Status === "Talking")
         .map((chamada) => {
           try {
+            // Se a chamada for para o VoiceMail, não é possível identificar o ramal
+            if (chamada.Callee.includes("VoiceMail")) {
+              const [_, callerId, callerName, callerNumber] =
+                chamada.Caller.match(this.#regexRamal);
+
+              let troncoName = "VOICE_MAIL_INTERNO"; // Caso não seja possível identificar o tronco, será considerado como voice mail entre ramais internos
+
+              // Se o callerId for um ramal de 5 dígitos e tiver um nome, considera-se que é um tronco de entrada
+              if (String(callerId).length === 5 && callerName) {
+                troncoName = callerName;
+              }
+
+              return {
+                id: chamada.Id,
+                caller: chamada.Caller,
+                callerData: {
+                  id: callerId,
+                  name: callerName,
+                  destination: callerNumber,
+                },
+                callee: chamada.Callee,
+                calleeData: {
+                  id: null,
+                  name: null,
+                  destination: null,
+                },
+                trunkName: troncoName,
+              };
+            }
+
             const [_, callerId, callerName, callerNumber] =
-              chamada.Caller.match(
-                /^(?<id>\d+)\s(?<name>[\w\p{L}\s]+)(?:\s\((?<destino>\d+)\))?$/u
-              ); // Regex para separar o número do ramal e o nome do ramal caso exista
+              chamada.Caller.match(this.#regexRamal); // Regex para separar o número do ramal e o nome do ramal caso exista
 
             const [__, calleeId, calleeName, calleeNumber] =
-              chamada.Callee.match(
-                /^(?<id>\d+)\s(?<name>[\w\p{L}\s]+)(?:\s\((?<destino>\d+)\))?$/u
-              ); // Regex para separar o número discado e o nome do discado caso exista
+              chamada.Callee.match(this.#regexRamal); // Regex para separar o número discado e o nome do discado caso exista
 
-            let troncoName = "RAMAL_INTERNO"; // Caso não seja encontrado o nome do tronco, será considerado como ramal interno
+            let troncoName = "RAMAL_INTERNO"; // Caso não seja possível identificar o tronco, será considerado como ramal interno
 
             if (String(callerId).length === 5 && callerName) {
               troncoName = callerName;
