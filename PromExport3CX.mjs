@@ -110,16 +110,12 @@ class PromExport3CX {
           headers: {
             cookie: `RefreshTokenCookie=${this.#refreshToken}`,
           },
+          validateStatus: (s) => s === 200,
         }
       );
-      if (response.status === 200) {
-        this.#token = response.data.access_token;
-        if (response.data.refresh_token)
-          this.#refreshToken = response.data.refresh_token;
-      } else {
-        console.error("Erro ao renovar o token:", response.status);
-        return null;
-      }
+      this.#token = response.data.access_token;
+      if (response.data.refresh_token)
+        this.#refreshToken = response.data.refresh_token;
     } catch (error) {
       console.error("Erro na solicitação de token:", error);
       return null;
@@ -142,7 +138,6 @@ class PromExport3CX {
           validateStatus: (s) => s === 200,
         }
       );
-      console.log("Total Chamadas ativas:", response.data["@odata.count"]);
 
       const chamadasAtivas = response.data.value
         .filter((c) => c.Status === "Talking")
