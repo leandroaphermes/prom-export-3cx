@@ -40,6 +40,15 @@ import axiosCreate from "axios";
  * @property {ActiveCallsType[]} value Lista de chamadas ativas no momento
  */
 
+/**
+ * @typedef ChamadaAtivaTratadaType
+ * @type {Object}
+ * @property {number} id ID da chamada
+ * @property {string} caller Chamador
+ * @property {string} callee Destinatário
+ * @property {'RAMAL_INTERNO' | 'VOICE_MAIL_INTERNO' | 'GRAVACAO_INTERNA' | string} trunkName Nome do tronco
+ */
+
 class PromExport3CX {
   /**
    * Dados de acesso ao servidor 3CX
@@ -127,7 +136,7 @@ class PromExport3CX {
 
   /**
    * Escuta as chamadas ativas no servidor 3CX e atualiza as métricas
-   * @returns {Promise<{chamadasSimultaneas: number, chamadasAtivas: ActiveCallsType[]}>}
+   * @returns {Promise<{chamadasSimultaneas: number, chamadasAtivas: ChamadaAtivaTratadaType[]}>}
    **/
   async escutarChamadasAtivas() {
     try {
@@ -150,10 +159,21 @@ class PromExport3CX {
         .filter((c) => c.Status === "Talking")
         .map((chamada) => {
           try {
+            // Se a chamada for para gravação, não é possível identificar o ramal
+            if (chamada.Caller === "PlayFile") {
+              return {
+                id: chamada.Id,
+                caller: chamada.Caller,
+                callee: chamada.Callee,
+                trunkName: "GRAVACAO_INTERNA",
+              };
+            }
+
             // Se a chamada for para o VoiceMail, não é possível identificar o ramal
             if (chamada.Callee.includes("VoiceMail")) {
-              const [_, callerId, callerName, callerNumber] =
-                chamada.Caller.match(this.#regexRamal);
+              const [_, callerId, callerName] = chamada.Caller.match(
+                this.#regexRamal
+              );
 
               let troncoName = "VOICE_MAIL_INTERNO"; // Caso não seja possível identificar o tronco, será considerado como voice mail entre ramais internos
 
@@ -165,26 +185,18 @@ class PromExport3CX {
               return {
                 id: chamada.Id,
                 caller: chamada.Caller,
-                callerData: {
-                  id: callerId,
-                  name: callerName,
-                  destination: callerNumber,
-                },
                 callee: chamada.Callee,
-                calleeData: {
-                  id: null,
-                  name: null,
-                  destination: null,
-                },
                 trunkName: troncoName,
               };
             }
 
-            const [_, callerId, callerName, callerNumber] =
-              chamada.Caller.match(this.#regexRamal); // Regex para separar o número do ramal e o nome do ramal caso exista
+            const [_, callerId, callerName] = chamada.Caller.match(
+              this.#regexRamal
+            ); // Regex para separar o número do ramal e o nome do ramal caso exista
 
-            const [__, calleeId, calleeName, calleeNumber] =
-              chamada.Callee.match(this.#regexRamal); // Regex para separar o número discado e o nome do discado caso exista
+            const [__, calleeId, calleeName] = chamada.Callee.match(
+              this.#regexRamal
+            ); // Regex para separar o número discado e o nome do discado caso exista
 
             let troncoName = "RAMAL_INTERNO"; // Caso não seja possível identificar o tronco, será considerado como ramal interno
 
@@ -198,17 +210,7 @@ class PromExport3CX {
             return {
               id: chamada.Id,
               caller: chamada.Caller,
-              callerData: {
-                id: callerId,
-                name: callerName,
-                destination: callerNumber,
-              },
               callee: chamada.Callee,
-              calleeData: {
-                id: calleeId,
-                name: calleeName,
-                destination: calleeNumber,
-              },
               trunkName: troncoName,
             };
           } catch (error) {
@@ -247,7 +249,7 @@ class PromExport3CX {
     /** @type {Map<string, number>} */
     const troncoMap = new Map();
 
-    const tempoRenovacao = 3000 * 1000; // 50 minutos em milissegundos
+    const tempoRenovacao = 1_000 * 60 * 59; // Renovar o token a cada 59 minutos
     let ultimoTempoRenovacao = Date.now();
 
     setInterval(async () => {
