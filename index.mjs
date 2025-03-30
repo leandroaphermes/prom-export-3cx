@@ -1,27 +1,10 @@
 import dotenv from "dotenv";
-import client from "prom-client";
 import http from "node:http";
 
 import PromExport3CX from "./PromExport3CX.mjs";
+import { register } from "./prom.mjs";
 
 dotenv.config();
-
-// Configuração do Prometheus
-const register = new client.Registry();
-client.collectDefaultMetrics({ register, prefix: "promexport3cx_" });
-
-const chamadasAtivasGauge = new client.Gauge({
-  name: "promexport3cx_chamadas_ativas_total",
-  help: "Total de chamadas ativas",
-  registers: [register],
-});
-
-const troncoChamadasGauge = new client.Gauge({
-  name: "promexport3cx_tronco_chamadas_total",
-  help: "Total de chamadas por tronco",
-  labelNames: ["tronco"],
-  registers: [register],
-});
 
 // Servidor HTTP para expor métricas
 const server = http.createServer(async (req, res) => {
@@ -39,16 +22,13 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(process.env.PORT || 3000, "0.0.0.0", () => {
+  const serverInfo = server.address();
   console.log(`Servidor rodando na porta 0.0.0.0:${process.env.PORT || 3000}`);
   console.log(
-    `\nMétricas disponíveis em http://${server.address().address}:${
-      server.address().port
-    }/metrics`
+    `\nMétricas disponíveis em http://${serverInfo.address}:${serverInfo.port}/metrics`
   );
   console.log(
-    `Healthcheck disponível em http://${server.address().address}:${
-      server.address().port
-    }/health`
+    `Healthcheck disponível em http://${serverInfo.address}:${serverInfo.port}/health`
   );
   console.log(
     `\nIniciando coleta de métricas do servidor 3CX ${process.env.PABX_URL}`
@@ -60,10 +40,7 @@ server.listen(process.env.PORT || 3000, "0.0.0.0", () => {
     process.env["PABX_RAMALPASS"],
     process.env["PABX_URL"]
   );
-  promExport3CX.main({
-    chamadasAtivasGauge,
-    troncoChamadasGauge,
-  });
+  promExport3CX.main();
 });
 
 server.on("error", (err) => {
