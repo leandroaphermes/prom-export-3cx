@@ -1,12 +1,12 @@
 import client from "prom-client";
-import Uteis from "./uteis.mjs";
+import Utils from "./Utils.mjs";
 
 // Configuração do Prometheus
 const register = new client.Registry();
 
 client.collectDefaultMetrics({
   register,
-  prefix: Uteis.createTagWithPrefix(),
+  prefix: Utils.createTagWithPrefix(),
 });
 
 export { register, client };

@@ -1,6 +1,6 @@
 import axiosCreate from "axios";
-import { client, register } from "./prom.mjs";
-import Uteis from "./uteis.mjs";
+import { client, register } from "./promConfig.mjs";
+import Utils from "./Utils.mjs";
 
 /**
  * @typedef {Object} ResponseAuth
@@ -27,9 +27,9 @@ import Uteis from "./uteis.mjs";
  * @typedef {Object} ActiveCallsType
  * @type {Object}
  * @property {number} Id
- * @property {string} Caller Chamador (Ramal, Nome Ramal, (Número Ramal))
- * @property {string} Callee Destinatário (Ramal, Nome Ramal, (Número Ramal))
- * @property {'Routing' | 'Talking' | 'Rerouting' | 'Initiating' | 'Transferring'} Status Status da chamada
+ * @property {string} Caller Caller (Extension, Extension Name, (Extension Number))
+ * @property {string} Callee Recipient (Extension, Extension Name, (Extension Number))
+ * @property {'Routing' | 'Talking' | 'Rerouting' | 'Initiating' | 'Transferring'} Status Call status
  * @property {string} LastChangeStatus
  * @property {string} EstablishedAt
  * @property {string} ServerNow
@@ -38,109 +38,160 @@ import Uteis from "./uteis.mjs";
 /**
  * @typedef {Object} ResponseActiveCalls
  *
- * @property {number} "@odata.count" Total de chamadas ativas
- * @property {ActiveCallsType[]} value Lista de chamadas ativas no momento
+ * @property {number} "@odata.count" Total active calls
+ * @property {ActiveCallsType[]} value List of currently active calls
  */
 
 /**
- * @typedef ChamadaAtivaTratadaType
+ * @typedef ProcessedActiveCallType
  * @type {Object}
- * @property {number} id ID da chamada
- * @property {string} caller Chamador
- * @property {string} callee Destinatário
- * @property {'RAMAL_INTERNO' | 'VOICE_MAIL_INTERNO' | 'GRAVACAO_INTERNA' | string} trunkName Nome do tronco
+ * @property {number} id Call ID
+ * @property {string} caller Caller
+ * @property {string} callee Recipient
+ * @property {'INTERNAL_EXTENSION' | 'INTERNAL_VOICE_MAIL' | 'INTERNAL_RECORDING' | string} trunkName Trunk name
  */
 
 /**
  * @typedef {Object} ResponseSystemStatus
- * @property {string} Version - Versão do sistema.
- * @property {boolean} Activated - Indica se o sistema está ativado.
- * @property {number} MaxSimCalls - Número máximo de chamadas simultâneas permitidas.
- * @property {number} ExtensionsRegistered - Número de ramais registrados.
- * @property {string} Ip - Endereço IP público com status (estático ou dinâmico).
- * @property {string} IpV4 - Endereço IPv4 público.
- * @property {string} IpV6 - Endereço IPv6 público (se disponível).
- * @property {boolean} LocalIpValid - Indica se o IP local é válido.
- * @property {string} CurrentLocalIp - Endereço IP local atual.
- * @property {string} AvailableLocalIps - Lista de IPs locais disponíveis.
- * @property {number} ExtensionsTotal - Número total de ramais configurados.
- * @property {boolean} HasUnregisteredSystemExtensions - Indica se há ramais do sistema não registrados.
- * @property {boolean} HasNotRunningServices - Indica se há serviços que não estão em execução.
- * @property {number} TrunksRegistered - Número de troncos registrados.
- * @property {number} TrunksTotal - Número total de troncos configurados.
- * @property {number} CallsActive - Número de chamadas ativas no momento.
- * @property {number} DiskUsage - Porcentagem de uso do disco.
- * @property {number} FreeDiskSpace - Espaço livre no disco (em bytes).
- * @property {number} TotalDiskSpace - Espaço total do disco (em bytes).
- * @property {string} MaintenanceExpiresAt - Data de expiração da manutenção (ISO 8601).
- * @property {boolean} Support - Indica se o suporte está ativo.
- * @property {boolean} LicenseActive - Indica se a licença está ativa.
- * @property {string} ExpirationDate - Data de expiração da licença (ISO 8601).
- * @property {number} OutboundRules - Número de regras de saída configuradas.
- * @property {boolean} BackupScheduled - Indica se o backup está agendado.
- * @property {string} LastBackupDateTime - Data e hora do último backup (ISO 8601).
- * @property {string} ResellerName - Nome do revendedor.
- * @property {string} ProductCode - Código do produto.
- * @property {boolean} IsAuditLogEnabled - Indica se o log de auditoria está habilitado.
- * @property {boolean} IsChatLogEnabled - Indica se o log de chat está habilitado.
- * @property {number} RecordingUsedSpace - Espaço usado para gravações (em bytes).
- * @property {number} RecordingQuota - Quota total para gravações (em bytes).
- * @property {boolean} RecordingStopped - Indica se as gravações foram interrompidas.
- * @property {boolean} VoicemailStopped - Indica se o correio de voz foi interrompido.
- * @property {boolean} VoicemailQuotaReached - Indica se a quota de correio de voz foi atingida.
- * @property {boolean} DBMaintenanceInProgress - Indica se a manutenção do banco de dados está em andamento.
- * @property {boolean} RecordingQuotaReached - Indica se a quota de gravações foi atingida.
- * @property {boolean} IsRecordingArchiveEnabled - Indica se o arquivamento de gravações está habilitado.
- * @property {string} OS - Sistema operacional do servidor.
- * @property {boolean} AutoUpdateEnabled - Indica se as atualizações automáticas estão habilitadas.
- * @property {string} LastCheckForUpdates - Data e hora da última verificação de atualizações (ISO 8601).
- * @property {string} LastSuccessfulUpdate - Data e hora da última atualização bem-sucedida (ISO 8601).
- * @property {boolean} RemoteStorageEnabled - Indica se o armazenamento remoto está habilitado.
- * @property {boolean} RemoteConfigurationRequired - Indica se a configuração remota é necessária.
- * @property {number} ChatUsedSpace - Espaço usado para chats (em bytes).
- * @property {number} LogUsedSpace - Espaço usado para logs (em bytes).
+ * @property {string} Version - System version.
+ * @property {boolean} Activated - Indicates whether the system is activated.
+ * @property {number} MaxSimCalls - Maximum number of simultaneous calls allowed.
+ * @property {number} ExtensionsRegistered - Number of registered extensions.
+ * @property {string} Ip - Public IP address with status (static or dynamic).
+ * @property {string} IpV4 - Public IPv4 address.
+ * @property {string} IpV6 - Public IPv6 address (if available).
+ * @property {boolean} LocalIpValid - Indicates whether the local IP is valid.
+ * @property {string} CurrentLocalIp - Current local IP address.
+ * @property {string} AvailableLocalIps - List of available local IPs.
+ * @property {number} ExtensionsTotal - Total number of configured extensions.
+ * @property {boolean} HasUnregisteredSystemExtensions - Indicates whether there are unregistered system extensions.
+ * @property {boolean} HasNotRunningServices - Indicates whether there are services not running.
+ * @property {number} TrunksRegistered - Number of registered trunks.
+ * @property {number} TrunksTotal - Total number of configured trunks.
+ * @property {number} CallsActive - Number of currently active calls.
+ * @property {number} DiskUsage - Disk usage percentage.
+ * @property {number} FreeDiskSpace - Free disk space (in bytes).
+ * @property {number} TotalDiskSpace - Total disk space (in bytes).
+ * @property {string} MaintenanceExpiresAt - Maintenance expiration date (ISO 8601).
+ * @property {boolean} Support - Indicates whether support is active.
+ * @property {boolean} LicenseActive - Indicates whether the license is active.
+ * @property {string} ExpirationDate - License expiration date (ISO 8601).
+ * @property {number} OutboundRules - Number of configured outbound rules.
+ * @property {boolean} BackupScheduled - Indicates whether backup is scheduled.
+ * @property {string} LastBackupDateTime - Last backup date and time (ISO 8601).
+ * @property {string} ResellerName - Reseller name.
+ * @property {string} ProductCode - Product code.
+ * @property {boolean} IsAuditLogEnabled - Indicates whether the audit log is enabled.
+ * @property {boolean} IsChatLogEnabled - Indicates whether the chat log is enabled.
+ * @property {number} RecordingUsedSpace - Space used for recordings (in bytes).
+ * @property {number} RecordingQuota - Total quota for recordings (in bytes).
+ * @property {boolean} RecordingStopped - Indicates whether recordings have been stopped.
+ * @property {boolean} VoicemailStopped - Indicates whether voicemail has been stopped.
+ * @property {boolean} VoicemailQuotaReached - Indicates whether the voicemail quota has been reached.
+ * @property {boolean} DBMaintenanceInProgress - Indicates whether database maintenance is in progress.
+ * @property {boolean} RecordingQuotaReached - Indicates whether the recording quota has been reached.
+ * @property {boolean} IsRecordingArchiveEnabled - Indicates whether recording archiving is enabled.
+ * @property {string} OS - Server operating system.
+ * @property {boolean} AutoUpdateEnabled - Indicates whether automatic updates are enabled.
+ * @property {string} LastCheckForUpdates - Last update check date and time (ISO 8601).
+ * @property {string} LastSuccessfulUpdate - Last successful update date and time (ISO 8601).
+ * @property {boolean} RemoteStorageEnabled - Indicates whether remote storage is enabled.
+ * @property {boolean} RemoteConfigurationRequired - Indicates whether remote configuration is required.
+ * @property {number} ChatUsedSpace - Space used for chats (in bytes).
+ * @property {number} LogUsedSpace - Space used for logs (in bytes).
  */
 
-const chamadasAtivasGauge = new client.Gauge({
-  name: Uteis.createTagWithPrefix("chamadas_ativas_total"),
-  help: "Total de chamadas ativas",
+const activeCallsGauge = new client.Gauge({
+  name: Utils.createTagWithPrefix("active_calls_total"),
+  help: "Total active calls",
   registers: [register],
 });
 
-const troncoChamadasGauge = new client.Gauge({
-  name: Uteis.createTagWithPrefix("tronco_chamadas_total"),
-  help: "Total de chamadas por tronco",
-  labelNames: ["tronco"],
+const trunkCallsGauge = new client.Gauge({
+  name: Utils.createTagWithPrefix("trunk_calls_total"),
+  help: "Total calls per trunk",
+  labelNames: ["trunk"],
   registers: [register],
 });
 
-const maxSimChamadasGauge = new client.Gauge({
-  name: Uteis.createTagWithPrefix("max_simultaneas_total"),
-  help: "Número máximo de chamadas simultâneas permitidas",
+const registeredExtensionsGauge = new client.Gauge({
+  name: Utils.createTagWithPrefix("registered_extensions_total"),
+  help: "Number of registered extensions",
+  registers: [register],
+});
+
+const totalExtensionsGauge = new client.Gauge({
+  name: Utils.createTagWithPrefix("total_extensions"),
+  help: "Total number of extensions",
+  registers: [register],
+});
+
+const registeredTrunksGauge = new client.Gauge({
+  name: Utils.createTagWithPrefix("registered_trunks_total"),
+  help: "Number of registered trunks",
+  registers: [register],
+});
+
+const maxSimCallsGauge = new client.Gauge({
+  name: Utils.createTagWithPrefix("max_simultaneous_total"),
+  help: "Maximum number of simultaneous calls allowed",
   registers: [register],
 });
 
 const diskUsageGauge = new client.Gauge({
-  name: Uteis.createTagWithPrefix("uso_disco_porcentagem_total"),
-  help: "Porcentagem de uso do disco",
+  name: Utils.createTagWithPrefix("disk_usage_percentage_total"),
+  help: "Disk usage percentage",
   registers: [register],
 });
 
-const infoSistemaGauge = new client.Gauge({
-  name: Uteis.createTagWithPrefix("info_sistema_total"),
-  help: "Informações do sistema",
-  labelNames: ["Version", "OS"],
+const diskUsageRecordGauge = new client.Gauge({
+  name: Utils.createTagWithPrefix("disk_usage_recording_percentage_total"),
+  help: "Disk usage percentage for recording",
   registers: [register],
 });
+
+const diskUsageChatGauge = new client.Gauge({
+  name: Utils.createTagWithPrefix("disk_usage_chat_percentage_total"),
+  help: "Disk usage percentage for chat",
+  registers: [register],
+});
+
+const diskUsageLogGauge = new client.Gauge({
+  name: Utils.createTagWithPrefix("disk_usage_log_percentage_total"),
+  help: "Disk usage percentage for log",
+  registers: [register],
+});
+
+const diskChatUsageGauge = new client.Gauge({
+  name: Utils.createTagWithPrefix("disk_usage_chat_total"),
+  help: "Disk usage for chat",
+  registers: [register],
+});
+
+const systemInfoGauge = new client.Gauge({
+  name: Utils.createTagWithPrefix("system_info"),
+  help: "System information",
+  labelNames: ["Version", "OS", "Ip", "Fqdn"],
+  registers: [register],
+});
+
+/**
+ * Class to export 3CX metrics to Prometheus
+ * @class PromExport3CX
+ *
+ * @example
+ * const promExport3CX = new PromExport3CX("0050", "password", "http://example.com");
+ * promExport3CX.main();
+ */
 
 class PromExport3CX {
   /**
-   * Dados de acesso ao servidor 3CX
+   * 3CX server access data
    * @type {{username: string, password: string}}
    */
   #userConfig = {
-    username: "seu_usuario",
-    password: "sua_senha",
+    username: "your_user",
+    password: "your_password",
   };
 
   /** @type {string|null} */
@@ -152,17 +203,23 @@ class PromExport3CX {
   /** @type {import("axios").AxiosInstance} */
   #axios;
 
-  #regexRamal =
-    /^(?<id>\d+)\s(?<name>[\w\p{L}z.\-\s]+)(?:\s\((<destino>\w+)\))?$/u;
+  #regexExtension =
+    /^(?<id>\d+)\s(?<name>[\w\p{L}z.\-\s]+)(?:\s\((?<destination>\w+)\))?$/u;
 
   #trunkIdLength = 5;
 
-  #troncoMap = new Map();
-  #tempoRenovacao = 1_000 * 60 * 59; // Renovar o token a cada 59 minutos
-  #ultimoTempoRenovacao = Date.now();
+  #trunkMap = new Map();
+  #renewalInterval = 1_000 * 60 * 59; // Renew the token every 59 minutes
+  #lastRenewalTime = Date.now();
 
   #intervalId = null;
 
+  /**
+   * Creates an instance of the PromExport3CX class
+   * @param {string} username - User extension identifier
+   * @param {string} password - Authentication password
+   * @param {string} baseURL - 3CX server base URL
+   */
   constructor(username, password, baseURL) {
     this.#userConfig.username = username;
     this.#userConfig.password = password;
@@ -180,7 +237,7 @@ class PromExport3CX {
    *
    * @returns {Promise<ResponseAuth>}
    */
-  async obterNovoTokenStartSessao() {
+  async getNewTokenStartSession() {
     try {
       /** @type {import("axios").AxiosResponse<ResponseAuth>} */
       const response = await this.#axios.post(
@@ -197,16 +254,16 @@ class PromExport3CX {
         this.#token = response.data.Token.access_token;
         this.#refreshToken = response.data.Token.refresh_token;
       } else {
-        console.error("Erro ao renovar o token:", response.status);
+        console.error("Error renewing token:", response.status);
         return null;
       }
     } catch (error) {
-      console.error("Erro na solicitação de token:", error);
+      console.error("Error requesting token:", error);
       return null;
     }
   }
 
-  async obterRefreshToken() {
+  async getRefreshToken() {
     try {
       /** @type {import("axios").AxiosResponse<ResponseConnectToken>} */
       const response = await this.#axios.post(
@@ -224,16 +281,16 @@ class PromExport3CX {
       if (response.data.refresh_token)
         this.#refreshToken = response.data.refresh_token;
     } catch (error) {
-      console.error("Erro na solicitação de token:", error);
+      console.error("Error requesting token:", error);
       return null;
     }
   }
 
   /**
-   * Escuta as chamadas ativas no servidor 3CX e atualiza as métricas
-   * @returns {Promise<{chamadasSimultaneas: number, chamadasAtivas: ChamadaAtivaTratadaType[]}>}
+   * Monitors active calls on the 3CX server and updates metrics
+   * @returns {Promise<{simultaneousCalls: number, activeCalls: ProcessedActiveCallType[]}>}
    **/
-  async getChamadasAtivas() {
+  async getActiveCalls() {
     try {
       /** @type {import("axios").AxiosResponse<ResponseActiveCalls>} */
       const response = await this.#axios.get(
@@ -247,88 +304,85 @@ class PromExport3CX {
       );
 
       if (process.env.NODE_ENV === "development") {
-        console.log("Total Chamadas ativas:", response.data["@odata.count"]);
+        console.log("Total active calls:", response.data["@odata.count"]);
       }
 
-      const chamadasAtivas = response.data.value
+      const activeCalls = response.data.value
         .filter((c) => c.Status === "Talking")
-        .map((chamada) => {
+        .map((call) => {
           try {
-            // Se a chamada for para gravação, não é possível identificar o ramal
-            if (chamada.Caller === "PlayFile") {
+            // If the call is for recording, the extension cannot be identified
+            if (call.Caller === "PlayFile") {
               return {
-                id: chamada.Id,
-                caller: chamada.Caller,
-                callee: chamada.Callee,
-                trunkName: "GRAVACAO_INTERNA",
+                id: call.Id,
+                caller: call.Caller,
+                callee: call.Callee,
+                trunkName: "INTERNAL_RECORDING",
               };
             }
 
-            // Se a chamada for para o VoiceMail, não é possível identificar o ramal
-            if (chamada.Callee.includes("VoiceMail")) {
-              const [_, callerId, callerName] = chamada.Caller.match(
-                this.#regexRamal
+            // If the call is for VoiceMail, the extension cannot be identified
+            if (call.Callee.includes("VoiceMail")) {
+              const [_, callerId, callerName] = call.Caller.match(
+                this.#regexExtension
               );
 
-              let troncoName = "VOICE_MAIL_INTERNO"; // Caso não seja possível identificar o tronco, será considerado como voice mail entre ramais internos
+              let trunkName = "INTERNAL_VOICE_MAIL"; // If the trunk cannot be identified, it will be considered as voicemail between internal extensions
 
-              // Se o callerId for um ramal de 5 dígitos e tiver um nome, considera-se que é um tronco de entrada
+              // If the callerId is a 5-digit extension and has a name, it is considered an incoming trunk
               if (String(callerId).length === 5 && callerName) {
-                troncoName = callerName;
+                trunkName = callerName;
               }
 
               return {
-                id: chamada.Id,
-                caller: chamada.Caller,
-                callee: chamada.Callee,
-                trunkName: troncoName,
+                id: call.Id,
+                caller: call.Caller,
+                callee: call.Callee,
+                trunkName: trunkName,
               };
             }
 
-            const [_, callerId, callerName] = chamada.Caller.match(
-              this.#regexRamal
-            ); // Regex para separar o número do ramal e o nome do ramal caso exista
+            const [_, callerId, callerName] = call.Caller.match(
+              this.#regexExtension
+            ); // Regex to separate the extension number and the extension name if it exists
 
-            const [__, calleeId, calleeName] = chamada.Callee.match(
-              this.#regexRamal
-            ); // Regex para separar o número discado e o nome do discado caso exista
+            const [__, calleeId, calleeName] = call.Callee.match(
+              this.#regexExtension
+            ); // Regex to separate the dialed number and the dialed name if it exists
 
-            let troncoName = "RAMAL_INTERNO"; // Caso não seja possível identificar o tronco, será considerado como ramal interno
+            let trunkName = "INTERNAL_EXTENSION"; // If the trunk cannot be identified, it will be considered as an internal extension
 
             if (String(callerId).length === this.#trunkIdLength && callerName) {
-              troncoName = callerName;
+              trunkName = callerName;
             }
             if (String(calleeId).length === this.#trunkIdLength && calleeName) {
-              troncoName = calleeName;
+              trunkName = calleeName;
             }
 
             return {
-              id: chamada.Id,
-              caller: chamada.Caller,
-              callee: chamada.Callee,
-              trunkName: troncoName,
+              id: call.Id,
+              caller: call.Caller,
+              callee: call.Callee,
+              trunkName: trunkName,
             };
           } catch (error) {
-            console.log(
-              "Total Chamadas ativas:",
-              response.data["@odata.count"]
-            );
-            console.error("Erro ao processar chamada:", error, chamada);
+            console.log("Total active calls:", response.data["@odata.count"]);
+            console.error("Error processing call:", error, call);
             return null;
           }
         });
 
       return {
-        chamadasSimultaneas: response.data["@odata.count"],
-        chamadasAtivas: chamadasAtivas.filter((c) => c !== null),
+        simultaneousCalls: response.data["@odata.count"],
+        activeCalls: activeCalls.filter((c) => c !== null),
       };
     } catch (error) {
-      console.error("Erro na solicitação:", error);
-      return { chamadasSimultaneas: 0, chamadasAtivas: [] };
+      console.error("Request error:", error);
+      return { simultaneousCalls: 0, activeCalls: [] };
     }
   }
 
-  async getInfoSistema() {
+  async getSystemInfo() {
     try {
       /** @type {import("axios").AxiosResponse<ResponseSystemStatus>} */
       const response = await this.#axios.get("/xapi/v1/SystemStatus", {
@@ -338,66 +392,83 @@ class PromExport3CX {
         validateStatus: (s) => s === 200,
       });
 
-      maxSimChamadasGauge.set(response.data.MaxSimCalls);
+      maxSimCallsGauge.set(response.data.MaxSimCalls);
 
       diskUsageGauge.set(response.data.DiskUsage);
 
-      infoSistemaGauge.set(
+      systemInfoGauge.set(
         {
           Version: response.data.Version,
           OS: response.data.OS,
+          Ip: response.data.Ip,
+          Fqdn: response.data.Fqdn,
         },
         1
       );
 
+      registeredTrunksGauge.set(response.data.TrunksRegistered);
+
+      registeredExtensionsGauge.set(response.data.ExtensionsRegistered);
+      totalExtensionsGauge.set(response.data.ExtensionsTotal);
+
+      diskUsageRecordGauge.set(
+        response.data.RecordingUsedSpace / response.data.RecordingQuota
+      );
+      diskUsageChatGauge.set(
+        response.data.ChatUsedSpace / response.data.ChatQuota
+      );
+
+      diskUsageLogGauge.set(
+        response.data.LogUsedSpace / response.data.LogQuota
+      );
+
+      diskChatUsageGauge.set(response.data.ChatUsedSpace);
+
       if (process.env.NODE_ENV === "development") {
-        console.log("Informações do sistema:", response.data);
+        console.log("System information:", response.data);
       }
     } catch (error) {
-      console.error("Erro na solicitação:", error);
+      console.error("Request error:", error);
     }
   }
 
-  async atualizarMetricasTick() {
+  async updateMetricsTick() {
     try {
-      if (Date.now() - this.#ultimoTempoRenovacao >= this.#tempoRenovacao) {
-        await this.obterRefreshToken();
+      if (Date.now() - this.#lastRenewalTime >= this.#renewalInterval) {
+        await this.getRefreshToken();
         if (this.#token) {
-          console.log("Token renovado com sucesso.", new Date().toISOString());
-          this.#ultimoTempoRenovacao = Date.now();
+          console.log("Token successfully renewed.", new Date().toISOString());
+          this.#lastRenewalTime = Date.now();
         } else {
-          console.error(
-            "Erro ao renovar o token. Tentando novamente em 5 segundos."
-          );
+          console.error("Error renewing token. Retrying in 5 seconds.");
           return;
         }
       }
-      const { chamadasAtivas, chamadasSimultaneas } =
-        await this.getChamadasAtivas();
+      const { activeCalls, simultaneousCalls } = await this.getActiveCalls();
 
-      chamadasAtivasGauge.set(chamadasSimultaneas);
+      activeCallsGauge.set(simultaneousCalls);
 
       /**
        * @type {Object<string, number>}
        */
-      const totalPorTronco = chamadasAtivas.reduce((acc, chamada) => {
-        acc[chamada.trunkName] = (acc[chamada.trunkName] || 0) + 1;
+      const totalPerTrunk = activeCalls.reduce((acc, call) => {
+        acc[call.trunkName] = (acc[call.trunkName] || 0) + 1;
         return acc;
       }, {});
 
-      for (const [keyMapTronco] of this.#troncoMap.entries()) {
-        this.#troncoMap.set(keyMapTronco, 0);
+      for (const [keyMapTrunk] of this.#trunkMap.entries()) {
+        this.#trunkMap.set(keyMapTrunk, 0);
       }
 
-      for (const [tronco, total] of Object.entries(totalPorTronco)) {
-        this.#troncoMap.set(tronco, total);
+      for (const [trunk, total] of Object.entries(totalPerTrunk)) {
+        this.#trunkMap.set(trunk, total);
       }
 
-      this.#troncoMap.forEach((total, tronco) => {
-        troncoChamadasGauge.set({ tronco }, total);
+      this.#trunkMap.forEach((total, trunk) => {
+        trunkCallsGauge.set({ trunk }, total);
       });
     } catch (error) {
-      console.error("Erro ao atualizar métricas:", error);
+      console.error("Error updating metrics:", error);
 
       if (this.#intervalId) {
         clearInterval(this.#intervalId);
@@ -405,30 +476,30 @@ class PromExport3CX {
 
         setTimeout(() => {
           this.main();
-        }, 60_000); // Tentar novamente em 1 minuto
+        }, 60_000); // Retry in 1 minute
       }
     }
   }
 
   /**
-   * Inicia a execução do script para monitorar as chamadas ativas
+   * Starts the script to monitor active calls
    * @returns {Promise<void>}
    */
   async main() {
-    await this.obterNovoTokenStartSessao();
+    await this.getNewTokenStartSession();
 
     if (!this.#token || !this.#refreshToken) {
-      console.error("Não foi possível obter o token inicial.");
+      console.error("Could not obtain initial token.");
       return;
     }
-    console.log("Token obtido com sucesso.", new Date().toISOString());
-    this.#ultimoTempoRenovacao = Date.now();
-    this.#intervalId = setInterval(() => this.atualizarMetricasTick(), 5000); // Verificar a cada 5 segundos
+    console.log("Token successfully obtained.", new Date().toISOString());
+    this.#lastRenewalTime = Date.now();
+    this.#intervalId = setInterval(() => this.updateMetricsTick(), 5000); // Check every 5 seconds
 
-    this.getInfoSistema();
+    this.getSystemInfo();
     setInterval(() => {
-      this.getInfoSistema();
-    }, 900_000); // Atualizar a cada 15 minutos
+      this.getSystemInfo();
+    }, 600_000); // Update every 10 minutes
   }
 }
 

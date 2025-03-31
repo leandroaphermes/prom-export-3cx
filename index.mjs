@@ -2,11 +2,11 @@ import dotenv from "dotenv";
 import http from "node:http";
 
 import PromExport3CX from "./PromExport3CX.mjs";
-import { register } from "./prom.mjs";
+import { register } from "./promConfig.mjs";
 
 dotenv.config();
 
-// Servidor HTTP para expor métricas
+// HTTP server to expose metrics
 const server = http.createServer(async (req, res) => {
   if (req.url === "/metrics") {
     res.setHeader("Content-Type", register.contentType);
@@ -23,17 +23,17 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(process.env.PORT || 3000, "0.0.0.0", () => {
   const serverInfo = server.address();
-  console.log(`Servidor rodando na porta 0.0.0.0:${process.env.PORT || 3000}`);
+  console.log(`Server running on 0.0.0.0:${process.env.PORT || 3000}`);
   console.log(
-    `\nMétricas disponíveis em http://${serverInfo.address}:${serverInfo.port}/metrics`
+    `\nMetrics available at http://${serverInfo.address}:${serverInfo.port}/metrics`
   );
   console.log(
-    `Healthcheck disponível em http://${serverInfo.address}:${serverInfo.port}/health`
+    `Healthcheck available at http://${serverInfo.address}:${serverInfo.port}/health`
   );
   console.log(
-    `\nIniciando coleta de métricas do servidor 3CX ${process.env.PABX_URL}`
+    `\nStarting metric collection for 3CX server ${process.env.PABX_URL}`
   );
-  console.log(`Ramal ID: ${process.env.PABX_RAMALID}`);
+  console.log(`Extension ID: ${process.env.PABX_RAMALID}`);
 
   const promExport3CX = new PromExport3CX(
     process.env["PABX_RAMALID"],
@@ -44,23 +44,23 @@ server.listen(process.env.PORT || 3000, "0.0.0.0", () => {
 });
 
 server.on("error", (err) => {
-  console.error("Erro ao iniciar servidor", err);
+  console.error("Error starting server", err);
   process.exit(1);
 });
 
 process.on("SIGINT", () => {
-  console.log("Encerrando servidor");
+  console.log("Shutting down server");
   server.close();
   process.exit(0);
 });
 
 process.on("SIGTERM", () => {
-  console.log("Encerrando servidor");
+  console.log("Shutting down server");
   server.close();
   process.exit(0);
 });
 
 process.on("uncaughtException", (err) => {
-  console.error("Erro não tratado", err);
+  console.error("Unhandled error", err);
   process.exit(1);
 });
