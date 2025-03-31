@@ -53,6 +53,7 @@ import Utils from "./Utils.mjs";
 
 /**
  * @typedef {Object} ResponseSystemStatus
+ * @property {string} FQDN - Fully Qualified Domain Name.
  * @property {string} Version - System version.
  * @property {boolean} Activated - Indicates whether the system is activated.
  * @property {number} MaxSimCalls - Maximum number of simultaneous calls allowed.
@@ -151,20 +152,14 @@ const diskUsageRecordGauge = new client.Gauge({
 });
 
 const diskUsageChatGauge = new client.Gauge({
-  name: Utils.createTagWithPrefix("disk_usage_chat_percentage_total"),
+  name: Utils.createTagWithPrefix("disk_usage_chat_total"),
   help: "Disk usage percentage for chat",
   registers: [register],
 });
 
 const diskUsageLogGauge = new client.Gauge({
-  name: Utils.createTagWithPrefix("disk_usage_log_percentage_total"),
+  name: Utils.createTagWithPrefix("disk_usage_log_total"),
   help: "Disk usage percentage for log",
-  registers: [register],
-});
-
-const diskChatUsageGauge = new client.Gauge({
-  name: Utils.createTagWithPrefix("disk_usage_chat_total"),
-  help: "Disk usage for chat",
   registers: [register],
 });
 
@@ -401,7 +396,7 @@ class PromExport3CX {
           Version: response.data.Version,
           OS: response.data.OS,
           Ip: response.data.Ip,
-          Fqdn: response.data.Fqdn,
+          Fqdn: response.data.FQDN,
         },
         1
       );
@@ -412,17 +407,11 @@ class PromExport3CX {
       totalExtensionsGauge.set(response.data.ExtensionsTotal);
 
       diskUsageRecordGauge.set(
-        response.data.RecordingUsedSpace / response.data.RecordingQuota
+        (response.data.RecordingUsedSpace / response.data.RecordingQuota) * 100
       );
-      diskUsageChatGauge.set(
-        response.data.ChatUsedSpace / response.data.ChatQuota
-      );
+      diskUsageChatGauge.set(response.data.ChatUsedSpace);
 
-      diskUsageLogGauge.set(
-        response.data.LogUsedSpace / response.data.LogQuota
-      );
-
-      diskChatUsageGauge.set(response.data.ChatUsedSpace);
+      diskUsageLogGauge.set(response.data.LogUsedSpace);
 
       if (process.env.NODE_ENV === "development") {
         console.log("System information:", response.data);
