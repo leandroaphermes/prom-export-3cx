@@ -121,6 +121,12 @@ const registeredExtensionsGauge = new client.Gauge({
   registers: [register],
 });
 
+const totalTrunksGauge = new client.Gauge({
+  name: Utils.createTagWithPrefix("trunks_total"),
+  help: "Number of trunks",
+  registers: [register],
+});
+
 const totalExtensionsGauge = new client.Gauge({
   name: Utils.createTagWithPrefix("total_extensions"),
   help: "Total number of extensions",
@@ -402,6 +408,7 @@ class PromExport3CX {
       );
 
       registeredTrunksGauge.set(response.data.TrunksRegistered);
+      totalTrunksGauge.set(response.data.TrunksTotal);
 
       registeredExtensionsGauge.set(response.data.ExtensionsRegistered);
       totalExtensionsGauge.set(response.data.ExtensionsTotal);

@@ -41,6 +41,7 @@ The exporter uses the 3CX API to gather data and expose it in a format that Prom
 - **registered_extensions_total**: Number of registered extensions.
 - **total_extensions**: Total number of configured extensions.
 - **registered_trunks_total**: Number of registered trunks.
+- **total_trunks**: Total number of configured trunks.
 - **max_simultaneous_total**: Maximum number of simultaneous calls allowed by license.
 - **disk_usage_percentage_total**: Disk usage percentage.
 - **disk_usage_recording_percentage_total**: Disk usage percentage for recordings.
