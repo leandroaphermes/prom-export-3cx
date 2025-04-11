@@ -294,15 +294,17 @@ class PromExport3CX {
   async getActiveCalls() {
     try {
       /** @type {import("axios").AxiosResponse<ResponseActiveCalls>} */
-      const response = await this.#axios.get(
-        "/xapi/v1/ActiveCalls?%24top=50&%24skip=0&%24count=true",
-        {
-          headers: {
-            Authorization: `Bearer ${this.#token}`,
-          },
-          validateStatus: (s) => s === 200,
-        }
-      );
+      const response = await this.#axios.get("/xapi/v1/ActiveCalls", {
+        params: {
+          $top: 100, // Limited to 100 active calls
+          $skip: 0,
+          $count: true,
+        },
+        headers: {
+          Authorization: `Bearer ${this.#token}`,
+        },
+        validateStatus: (s) => s === 200,
+      });
 
       if (process.env.NODE_ENV === "development") {
         console.log("Total active calls:", response.data["@odata.count"]);
