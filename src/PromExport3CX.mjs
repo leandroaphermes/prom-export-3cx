@@ -176,6 +176,13 @@ const systemInfoGauge = new client.Gauge({
   registers: [register],
 });
 
+const errorCaptureGauge = new client.Gauge({
+  name: Utils.createTagWithPrefix("error_capture"),
+  help: "Error capture",
+  labelNames: ["error"],
+  registers: [register],
+});
+
 /**
  * Class to export 3CX metrics to Prometheus
  * @class PromExport3CX
@@ -229,7 +236,7 @@ class PromExport3CX {
     this.#trunkIdLength = Number(process.env["PABX_TRUNKID_LENGTH"] || 5);
 
     this.#axios = axiosCreate.create({
-      timeout: 5000,
+      timeout: 15_000, // 15 seconds
       baseURL: baseURL,
     });
   }
@@ -281,8 +288,21 @@ class PromExport3CX {
       this.#token = response.data.access_token;
       if (response.data.refresh_token)
         this.#refreshToken = response.data.refresh_token;
+
+      errorCaptureGauge.set(
+        {
+          error: "getRefreshToken",
+        },
+        0
+      );
     } catch (error) {
       console.error("Error requesting token:", error);
+      errorCaptureGauge.set(
+        {
+          error: "getRefreshToken",
+        },
+        1
+      );
       return null;
     }
   }
@@ -375,12 +395,25 @@ class PromExport3CX {
           }
         });
 
+      errorCaptureGauge.set(
+        {
+          error: "getActiveCalls",
+        },
+        0
+      );
+
       return {
         simultaneousCalls: response.data["@odata.count"],
         activeCalls: activeCalls.filter((c) => c !== null),
       };
     } catch (error) {
       console.error("Request error:", error);
+      errorCaptureGauge.set(
+        {
+          error: "getActiveCalls",
+        },
+        1
+      );
       return { simultaneousCalls: 0, activeCalls: [] };
     }
   }
@@ -422,11 +455,24 @@ class PromExport3CX {
 
       diskUsageLogGauge.set(response.data.LogUsedSpace);
 
+      errorCaptureGauge.set(
+        {
+          error: "getSystemInfo",
+        },
+        0
+      );
+
       if (process.env.NODE_ENV === "development") {
         console.log("System information:", response.data);
       }
     } catch (error) {
       console.error("Request error:", error);
+      errorCaptureGauge.set(
+        {
+          error: "getSystemInfo",
+        },
+        1
+      );
     }
   }
 
@@ -497,7 +543,7 @@ class PromExport3CX {
     this.getSystemInfo();
     setInterval(() => {
       this.getSystemInfo();
-    }, 600_000); // Update every 10 minutes
+    }, 60_000); // Update every 1 minute
   }
 }
 
