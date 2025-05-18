@@ -543,7 +543,7 @@ class PromExport3CX {
     this.getSystemInfo();
     setInterval(() => {
       this.getSystemInfo();
-    }, 60_000); // Update every 1 minute
+    }, 30_000); // Update every 1 minute
   }
 }
 
