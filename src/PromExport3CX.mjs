@@ -212,7 +212,7 @@ class PromExport3CX {
   #axios;
 
   #regexExtension =
-    /^(?<id>\d+)\s(?<name>[\w\p{L}z.\-\s]+)(?:\s\((?<destination>\w+)\))?$/u;
+    /^(?<id>\d+)\s(?<name>[\w\p{L}z.\-\s]+)(?:\s\((?<destination>[\w*\-#]+)\))?$/u;
 
   #trunkIdLength = 5;
 
@@ -414,7 +414,7 @@ class PromExport3CX {
         },
         1
       );
-      return { simultaneousCalls: 0, activeCalls: [] };
+      throw error;
     }
   }
 
